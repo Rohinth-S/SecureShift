@@ -44,6 +44,8 @@ mobile/       client integration can be added without changing API contracts
 
 ## Run locally
 
+Requires Node.js 22.5 or newer because the local adapter uses the built-in `node:sqlite` module.
+
 ```bash
 npm install
 cp .env.example .env
