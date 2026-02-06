@@ -36,7 +36,7 @@ mobile/       client integration can be added without changing API contracts
 
 ## Security decisions
 
-- Passwords use `scrypt` with a fixed application salt for this demo; production deployments should use a per-user salt and a managed secret.
+- Passwords use `scrypt` with a random per-user salt and constant-time verification. The JWT secret must be at least 32 characters in production.
 - JWTs are issuer-scoped and expire after two hours.
 - OTP codes are stored as SHA-256 digests and expire after five minutes.
 - Role checks happen in middleware and ownership is checked again at the state transition boundary.
