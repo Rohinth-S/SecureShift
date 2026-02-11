@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { repository } from "./repository.js";
 
 export type PersistenceMode = "sqlite" | "postgres";
 export function persistenceMode(): PersistenceMode {
@@ -32,10 +33,7 @@ export function validateRuntimeConfig(service: string) {
     );
 }
 
-/**
- * Validates connectivity to the managed Postgres target. Route repositories still
- * use the local synchronous adapter until the async repository migration is enabled.
- */
+/** Validates connectivity to the managed Postgres target selected by the route repository. */
 export async function checkPostgresConnection() {
   if (!(process.env.DB_URL ?? process.env.SUPABASE_DB_URL))
     return { mode: "sqlite" as const, checked: false };
@@ -57,12 +55,9 @@ export async function checkPostgresConnection() {
 
 export async function bootstrapPersistence(service: string) {
   validateRuntimeConfig(service);
-  if (
-    persistenceMode() === "postgres" &&
-    process.env.POSTGRES_ROUTES_ENABLED !== "true"
-  ) {
+  if (persistenceMode() === "postgres" && repository.mode !== "postgres") {
     throw new Error(
-      `${service} detected DB_URL/SUPABASE_DB_URL, but route repositories still use the synchronous SQLite adapter. Complete the async Postgres repository migration before enabling POSTGRES_ROUTES_ENABLED=true.`,
+      `${service} detected DB_URL/SUPABASE_DB_URL, but the HTTP route repository is not using the async Postgres adapter. Refusing to start with a silent SQLite fallback.`,
     );
   }
   return checkPostgresConnection();

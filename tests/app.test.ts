@@ -38,4 +38,18 @@ describe("SecureShift scheduling", () => {
       .send({ workerId: worker.body.id });
     expect(a.status).toBe(200);
   });
+
+  it("persists OTP consumption and audit events through the repository", async () => {
+    await request(app).post("/auth/register").send({ email: "audit-manager@test.local", password: "correct-horse-battery", role: "manager" });
+    const login = await request(app).post("/auth/login").send({ email: "audit-manager@test.local", password: "correct-horse-battery" });
+    const otp = await request(app).post("/auth/request-otp").set("Authorization", `Bearer ${login.body.token}`);
+    expect(otp.status).toBe(202); expect(otp.body.devCode).toMatch(/^\d{6}$/);
+    const verified = await request(app).post("/auth/verify-otp").set("Authorization", `Bearer ${login.body.token}`).send({ challengeId: otp.body.challengeId, code: otp.body.devCode });
+    expect(verified.status).toBe(200); expect(verified.body.verified).toBe(true);
+    const replay = await request(app).post("/auth/verify-otp").set("Authorization", `Bearer ${login.body.token}`).send({ challengeId: otp.body.challengeId, code: otp.body.devCode });
+    expect(replay.status).toBe(400);
+    const audit = await request(app).get("/audit").set("Authorization", `Bearer ${login.body.token}`);
+    expect(audit.status).toBe(200); expect(audit.body.map((row: { action: string }) => row.action)).toEqual(expect.arrayContaining(["otp.requested", "otp.verified"]));
+  });
 });
+

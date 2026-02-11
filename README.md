@@ -9,7 +9,9 @@ flowchart LR
   Mobile[Expo mobile client] --> API[Express API]
   API --> Auth[JWT + OTP service]
   API --> Policy[RBAC policy middleware]
-  API --> Repo[(SQLite repository)]
+  API --> Repo{Repository boundary}
+  Repo --> SQLite[(SQLite local adapter)]
+  Repo --> Postgres[(Async PostgreSQL adapter)]
   API --> Audit[Append-only audit log]
   Policy --> Repo
 ```
@@ -20,7 +22,8 @@ flowchart LR
 src/
   app.ts       HTTP routes, validation, error boundary
   security.ts  password, JWT, OTP primitives
-  db.ts        schema and connection bootstrap
+  db.ts        SQLite schema and connection bootstrap
+  repository.ts sync SQLite + async PostgreSQL implementations
   server.ts    process entrypoint
 tests/         contract-level API tests
 mobile/       client integration can be added without changing API contracts
@@ -60,4 +63,6 @@ SQLite keeps onboarding deterministic and makes the test suite self-contained. A
 
 ## Production adapters
 
-Set `DB_URL` or `SUPABASE_DB_URL` to select the managed Postgres connectivity check. Because the HTTP handlers still use the synchronous SQLite repository, production startup intentionally fails fast when these variables are present unless `POSTGRES_ROUTES_ENABLED=true`; the concrete remaining task is to migrate the route repository calls to an async Postgres implementation before enabling that flag. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` (or `STORAGE_BUCKET`) for signed uploads. The service-role key is server-only and must never be placed in the Expo client. Local tests omit these values and continue using the Node SQLite adapter.
+Set `DB_URL` or `SUPABASE_DB_URL` to route all user, shift, OTP, and audit operations through the async PostgreSQL repository. The repository creates the required tables and indexes on startup; use a migration tool for stricter production change control. When neither variable is set, local tests and development use the synchronous Node SQLite adapter. The `/health` response reports the selected mode, and startup refuses a future configuration that requests Postgres while exposing a SQLite route repository.
+
+Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` (or `STORAGE_BUCKET`) for signed uploads. The service-role key is server-only and must never be placed in the Expo client.
