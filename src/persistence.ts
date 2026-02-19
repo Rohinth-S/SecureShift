@@ -57,7 +57,7 @@ export async function bootstrapPersistence(service: string) {
   validateRuntimeConfig(service);
   if (persistenceMode() === "postgres" && repository.mode !== "postgres") {
     throw new Error(
-      `${service} detected DB_URL/SUPABASE_DB_URL, but the HTTP route repository is not using the async Postgres adapter. Refusing to start with a silent SQLite fallback.`,
+      `${service} detected DB_URL/SUPABASE_DB_URL without POSTGRES_ROUTES_ENABLED=true. Set the flag explicitly before switching production traffic to managed Postgres.`,
     );
   }
   return checkPostgresConnection();
