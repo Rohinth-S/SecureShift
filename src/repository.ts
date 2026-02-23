@@ -86,7 +86,6 @@ export async function createRepository(): Promise<SecureShiftRepository> {
   const connectionString = process.env.DB_URL ?? process.env.SUPABASE_DB_URL;
   if (!connectionString) return createLocalRepository();
   const pool = new Pool({ connectionString, ssl: process.env.PGSSLMODE === "disable" ? undefined : { rejectUnauthorized: false }, max: 10 });
-  await pool.query(POSTGRES_SCHEMA);
   return new PostgresRepository(pool, pool);
 }
 
