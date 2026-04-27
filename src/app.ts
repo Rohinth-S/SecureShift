@@ -3,7 +3,7 @@ import cors from "cors";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { repository } from "./repository.js";
-import { hashOtp, hashPassword, verifyPassword, signToken, verifyToken, Claims, Role } from "./security.js";
+import { hashOtp, hashPassword, verifyPassword, signToken, verifyToken, Claims, Role, createRefreshToken, hashRefreshToken } from "./security.js";
 
 const app = express();
 const corsOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
@@ -22,6 +22,13 @@ function allow(...roles: Role[]) { return (req: Authed, res: Response, next: Nex
 async function audit(actor: string, action: string, type: string, id: string, meta: unknown = {}) {
   await repository.appendAudit({ id: crypto.randomUUID(), actor_id: actor, action, entity_type: type, entity_id: id, metadata_json: JSON.stringify(meta), created_at: new Date().toISOString() });
 }
+const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+async function issueRefreshSession(userId: string) {
+  const issued = createRefreshToken();
+  const now = new Date();
+  await repository.createRefreshSession({ id: crypto.randomUUID(), user_id: userId, token_hash: issued.tokenHash, expires_at: new Date(now.getTime() + refreshLifetimeMs).toISOString(), revoked_at: null, created_at: now.toISOString() });
+  return issued.token;
+}
 const register = z.object({ email: z.string().email(), password: z.string().min(12), role: z.enum(["admin", "manager", "worker"]).default("worker"), phone: z.string().optional() });
 app.get("/health", (_, res) => res.json({ service: "secureshift", status: "ok", persistence: repository.mode, time: new Date().toISOString() }));
 app.post("/auth/register", async (req, res) => {
@@ -34,7 +41,23 @@ app.post("/auth/login", async (req, res) => {
   const p = z.object({ email: z.string().email(), password: z.string() }).safeParse(req.body); if (!p.success) return res.status(400).json({ error: "invalid credentials" });
   const u = await repository.findUserByEmail(p.data.email.toLowerCase());
   if (!u || !verifyPassword(p.data.password, u.password_hash)) return res.status(401).json({ error: "invalid credentials" });
-  return res.json({ token: signToken({ sub: u.id, email: u.email, role: u.role }), user: { id: u.id, email: u.email, role: u.role } });
+  const claims = { sub: u.id, email: u.email, role: u.role } as Claims;
+  return res.json({ token: signToken(claims), refreshToken: await issueRefreshSession(u.id), user: { id: u.id, email: u.email, role: u.role } });
+});
+app.post("/auth/refresh", async (req, res) => {
+  const p = z.object({ refreshToken: z.string().min(20).max(200) }).safeParse(req.body); if (!p.success) return res.status(400).json({ error: "refreshToken required" });
+  const session = await repository.findRefreshSession(hashRefreshToken(p.data.refreshToken));
+  if (!session || session.revoked_at || new Date(session.expires_at) <= new Date()) return res.status(401).json({ error: "invalid or expired refresh token" });
+  const user = await repository.findUserById(session.user_id); if (!user) return res.status(401).json({ error: "invalid refresh session" });
+  await repository.revokeRefreshSession(session.id, new Date().toISOString());
+  const claims = { sub: user.id, email: user.email, role: user.role } as Claims;
+  return res.json({ token: signToken(claims), refreshToken: await issueRefreshSession(user.id) });
+});
+app.post("/auth/logout", auth, async (req: Authed, res) => {
+  const p = z.object({ refreshToken: z.string().min(20).max(200) }).safeParse(req.body); if (!p.success) return res.status(400).json({ error: "refreshToken required" });
+  const session = await repository.findRefreshSession(hashRefreshToken(p.data.refreshToken));
+  if (session && session.user_id === req.user!.sub) await repository.revokeRefreshSession(session.id, new Date().toISOString());
+  return res.status(204).send();
 });
 app.post("/auth/request-otp", auth, async (req: Authed, res) => {
   const id = crypto.randomUUID(); const code = String(Math.floor(100000 + Math.random() * 900000)); const expires = new Date(Date.now() + 5 * 60_000).toISOString();
@@ -60,6 +83,7 @@ app.post("/shifts/:id/assign", auth, allow("admin", "manager"), async (req: Auth
   const p = z.object({ workerId: z.string() }).safeParse(req.body); if (!p.success) return res.status(400).json({ error: "workerId required" });
   const worker = await repository.findUserById(p.data.workerId); if (!worker || worker.role !== "worker") return res.status(422).json({ error: "assignee must be a worker" });
   const s = await repository.findShift(shiftId); if (!s) return res.status(404).json({ error: "shift not found" }); if (s.status !== "open") return res.status(409).json({ error: "only open shifts can be assigned" });
+  if (await repository.hasOverlappingShift(worker.id, s.starts_at, s.ends_at, s.id)) return res.status(409).json({ error: "worker has overlapping shift" });
   const changed = await repository.assignShift(s.id, worker.id); if (!changed) return res.status(409).json({ error: "only open shifts can be assigned" });
   await audit(req.user!.sub, "shift.assigned", "shift", s.id, { workerId: worker.id }); res.json({ id: s.id, status: "assigned", assigneeId: worker.id });
 });
