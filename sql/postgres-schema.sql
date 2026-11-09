@@ -15,4 +15,5 @@ ALTER TABLE secureshift_audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY service_role_full_access ON secureshift_users FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON secureshift_shifts FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON secureshift_otp_challenges FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY service_role_full_access ON secureshift_refresh_sessions FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON secureshift_audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
