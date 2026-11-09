@@ -63,6 +63,6 @@ SQLite keeps onboarding deterministic and makes the test suite self-contained. A
 
 ## Production adapters
 
-Set `DB_URL` or `SUPABASE_DB_URL` to route all user, shift, OTP, and audit operations through the async PostgreSQL repository. The repository creates the required tables and indexes on startup; use a migration tool for stricter production change control. When neither variable is set, local tests and development use the synchronous Node SQLite adapter. The `/health` response reports the selected mode, and startup refuses a future configuration that requests Postgres while exposing a SQLite route repository.
+Set `DB_URL` or `SUPABASE_DB_URL` together with `POSTGRES_ROUTES_ENABLED=true` to route all user, shift, OTP, and audit operations through the async PostgreSQL repository. Apply `sql/postgres-schema.sql` before starting the service; startup validates connectivity and does not run production DDL. When neither variable is set, local tests and development use the synchronous Node SQLite adapter. The `/health` response reports the selected mode.
 
 Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` (or `STORAGE_BUCKET`) for signed uploads. The service-role key is server-only and must never be placed in the Expo client.
