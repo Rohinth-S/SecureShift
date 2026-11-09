@@ -1,6 +1,6 @@
 # SecureShift
 
-SecureShift is a role-aware workforce scheduling service for teams that need auditable assignment and completion workflows. The reference implementation uses Express, TypeScript, Zod validation, JWT access tokens, scrypt password hashing, OTP challenges, and SQLite in WAL mode for a deterministic local environment. The persistence layer is deliberately isolated so a MongoDB adapter can be introduced without changing HTTP contracts.
+SecureShift is a role-aware workforce scheduling service for teams that need auditable assignment and completion workflows. The reference implementation uses Express, TypeScript, Zod validation, JWT access tokens, scrypt password hashing, OTP challenges, SQLite in WAL mode for deterministic local development, and an async PostgreSQL adapter for managed deployments. The persistence layer is deliberately isolated so storage changes do not alter HTTP contracts.
 
 ## Architecture
 
