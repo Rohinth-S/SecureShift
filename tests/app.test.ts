@@ -4,7 +4,7 @@ import app from "../src/app.js";
 import { db } from "../src/db.js";
 
 beforeEach(() => {
-  for (const t of ["audit_logs", "otp_challenges", "shifts", "users"])
+  for (const t of ["audit_logs", "otp_challenges", "refresh_sessions", "shifts", "users"])
     db.prepare(`DELETE FROM ${t}`).run();
 });
 describe("SecureShift scheduling", () => {
