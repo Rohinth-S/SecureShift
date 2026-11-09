@@ -125,13 +125,11 @@ app.post("/auth/request-otp", auth, (req: Authed, res) => {
     expires,
   );
   audit(req.user!.sub, "otp.requested", "otp", id);
-  res
-    .status(202)
-    .json({
-      challengeId: id,
-      expiresAt: expires,
-      devCode: process.env.NODE_ENV === "production" ? undefined : code,
-    });
+  res.status(202).json({
+    challengeId: id,
+    expiresAt: expires,
+    devCode: process.env.NODE_ENV === "production" ? undefined : code,
+  });
 });
 app.post("/auth/verify-otp", auth, (req: Authed, res) => {
   const p = z

@@ -9,23 +9,19 @@ beforeEach(() => {
 });
 describe("SecureShift scheduling", () => {
   it("enforces role boundaries and supports assignment", async () => {
-    const manager = await request(app)
-      .post("/auth/register")
-      .send({
-        email: "manager@test.local",
-        password: "correct-horse-battery",
-        role: "manager",
-      });
+    const manager = await request(app).post("/auth/register").send({
+      email: "manager@test.local",
+      password: "correct-horse-battery",
+      role: "manager",
+    });
     const login = await request(app)
       .post("/auth/login")
       .send({ email: "manager@test.local", password: "correct-horse-battery" });
-    const worker = await request(app)
-      .post("/auth/register")
-      .send({
-        email: "worker@test.local",
-        password: "correct-horse-battery",
-        role: "worker",
-      });
+    const worker = await request(app).post("/auth/register").send({
+      email: "worker@test.local",
+      password: "correct-horse-battery",
+      role: "worker",
+    });
     const r = await request(app)
       .post("/shifts")
       .set("Authorization", `Bearer ${login.body.token}`)
