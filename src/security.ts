@@ -2,7 +2,10 @@ import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 
 const configuredSecret = process.env.JWT_SECRET;
-if (process.env.NODE_ENV === "production" && (!configuredSecret || configuredSecret.length < 32)) {
+if (
+  process.env.NODE_ENV === "production" &&
+  (!configuredSecret || configuredSecret.length < 32)
+) {
   throw new Error("JWT_SECRET must be at least 32 characters in production");
 }
 const secret = configuredSecret ?? "dev-only-secret-change-me-please-32-chars";
@@ -18,10 +21,19 @@ export function verifyPassword(password: string, encoded: string) {
     const [scheme, salt, expected] = encoded.split("$");
     if (scheme !== "scrypt" || !salt || !expected) return false;
     const actual = crypto.scryptSync(password, salt, 32).toString("hex");
-    const a = Buffer.from(actual, "hex"); const b = Buffer.from(expected, "hex");
+    const a = Buffer.from(actual, "hex");
+    const b = Buffer.from(expected, "hex");
     return a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
-export function signToken(c: Claims) { return jwt.sign(c, secret, { expiresIn: "2h", issuer: "secureshift" }); }
-export function verifyToken(token: string) { return jwt.verify(token, secret, { issuer: "secureshift" }) as Claims; }
-export function hashOtp(code: string) { return crypto.createHash("sha256").update(code).digest("hex"); }
+export function signToken(c: Claims) {
+  return jwt.sign(c, secret, { expiresIn: "2h", issuer: "secureshift" });
+}
+export function verifyToken(token: string) {
+  return jwt.verify(token, secret, { issuer: "secureshift" }) as Claims;
+}
+export function hashOtp(code: string) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}

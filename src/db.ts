@@ -6,7 +6,7 @@ import path from "node:path";
 
 const file = process.env.DB_FILE ?? "./data/secureshift.db";
 fs.mkdirSync(path.dirname(file), { recursive: true });
-export const db:any = new DatabaseSync(file);
+export const db: any = new DatabaseSync(file);
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','manager','worker')), phone TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS shifts (id TEXT PRIMARY KEY, title TEXT NOT NULL, starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, location TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('open','assigned','completed','cancelled')), assignee_id TEXT REFERENCES users(id), created_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
