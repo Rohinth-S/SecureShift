@@ -44,7 +44,7 @@ export class SqliteRepository implements SecureShiftRepository {
 export class PostgresRepository implements SecureShiftRepository {
   readonly mode = "postgres" as const;
   private readonly ready: Promise<void>;
-  constructor(private readonly pool: Pool) { this.ready = this.initialize(); }
+  constructor(private readonly pool: Pool) { this.ready = this.initialize(); this.ready.catch(() => undefined); }
   private async initialize() {
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','manager','worker')), phone TEXT, created_at TIMESTAMPTZ NOT NULL);
