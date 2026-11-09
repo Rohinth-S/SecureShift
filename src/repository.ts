@@ -36,7 +36,7 @@ export interface SecureShiftRepository {
   findRefreshSession(tokenHash: string): Promise<RefreshSessionRow | undefined>;
   revokeRefreshSession(id: string, revokedAt: string): Promise<boolean>;
   appendAudit(row: { id: string; actor_id: string; action: string; entity_type: string; entity_id: string; metadata_json: string; created_at: string }): Promise<void>;
-  listAudit(limit: number): Promise<any[]>;
+  listAudit(limit: number, action?: string): Promise<any[]>;
   close(): Promise<void>;
 }
 
@@ -61,7 +61,7 @@ class SqliteRepository implements SecureShiftRepository {
   async findRefreshSession(tokenHash: string) { return db.prepare("SELECT * FROM refresh_sessions WHERE token_hash=?").get(tokenHash) as RefreshSessionRow | undefined; }
   async revokeRefreshSession(id: string, revokedAt: string) { return Number(db.prepare("UPDATE refresh_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL").run(revokedAt, id).changes) === 1; }
   async appendAudit(row: { id: string; actor_id: string; action: string; entity_type: string; entity_id: string; metadata_json: string; created_at: string }) { db.prepare("INSERT INTO audit_logs VALUES (?,?,?,?,?,?,?)").run(row.id, row.actor_id, row.action, row.entity_type, row.entity_id, row.metadata_json, row.created_at); }
-  async listAudit(limit: number) { return db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?").all(limit); }
+  async listAudit(limit: number, action?: string) { return action ? db.prepare("SELECT * FROM audit_logs WHERE action=? ORDER BY created_at DESC LIMIT ?").all(action, limit) : db.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?").all(limit); }
   async close() {}
 }
 
@@ -84,7 +84,7 @@ class PostgresRepository implements SecureShiftRepository {
   async findRefreshSession(tokenHash: string) { const result = await this.executor.query("SELECT id,user_id,token_hash,expires_at,revoked_at,created_at FROM secureshift_refresh_sessions WHERE token_hash=$1", [tokenHash]); return result.rows[0] as RefreshSessionRow | undefined; }
   async revokeRefreshSession(id: string, revokedAt: string) { const result = await this.executor.query("UPDATE secureshift_refresh_sessions SET revoked_at=$1 WHERE id=$2 AND revoked_at IS NULL", [revokedAt, id]); return result.rowCount === 1; }
   async appendAudit(row: { id: string; actor_id: string; action: string; entity_type: string; entity_id: string; metadata_json: string; created_at: string }) { await this.executor.query("INSERT INTO secureshift_audit_logs (id,actor_id,action,entity_type,entity_id,metadata,created_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)", [row.id, row.actor_id, row.action, row.entity_type, row.entity_id, row.metadata_json, row.created_at]); }
-  async listAudit(limit: number) { const result = await this.executor.query("SELECT id,actor_id,action,entity_type,entity_id,metadata::text AS metadata_json,created_at FROM secureshift_audit_logs ORDER BY created_at DESC LIMIT $1", [limit]); return result.rows; }
+  async listAudit(limit: number, action?: string) { const result = action ? await this.executor.query("SELECT id,actor_id,action,entity_type,entity_id,metadata::text AS metadata_json,created_at FROM secureshift_audit_logs WHERE action=$1 ORDER BY created_at DESC LIMIT $2", [action, limit]) : await this.executor.query("SELECT id,actor_id,action,entity_type,entity_id,metadata::text AS metadata_json,created_at FROM secureshift_audit_logs ORDER BY created_at DESC LIMIT $1", [limit]); return result.rows; }
   async close() { await this.pool?.end(); }
 }
 

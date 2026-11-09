@@ -50,6 +50,8 @@ describe("SecureShift scheduling", () => {
     expect(replay.status).toBe(400);
     const audit = await request(app).get("/audit").set("Authorization", `Bearer ${login.body.token}`);
     expect(audit.status).toBe(200); expect(audit.body.map((row: { action: string }) => row.action)).toEqual(expect.arrayContaining(["otp.requested", "otp.verified"]));
+    const filtered = await request(app).get("/audit?action=otp.verified&limit=1").set("Authorization", `Bearer ${login.body.token}`);
+    expect(filtered.status).toBe(200); expect(filtered.body).toHaveLength(1); expect(filtered.headers["x-audit-limit"]).toBe("1");
   });
 });
 

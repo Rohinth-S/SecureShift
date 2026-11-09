@@ -95,6 +95,11 @@ app.post("/shifts/:id/complete", auth, async (req: Authed, res) => {
   const changed = await repository.completeShift(s.id); if (!changed) return res.status(409).json({ error: "shift is not assigned" });
   await audit(req.user!.sub, "shift.completed", "shift", s.id); res.json({ id: s.id, status: "completed" });
 });
-app.get("/audit", auth, allow("admin", "manager"), async (_req, res) => res.json(await repository.listAudit(200)));
+app.get("/audit", auth, allow("admin", "manager"), async (req, res) => {
+  const rawLimit = Number(req.query.limit ?? 200); const limit = Number.isInteger(rawLimit) ? Math.min(500, Math.max(1, rawLimit)) : 200;
+  const action = typeof req.query.action === "string" && req.query.action.length <= 80 ? req.query.action : undefined;
+  res.setHeader("x-audit-limit", String(limit)); if (action) res.setHeader("x-audit-action", action);
+  return res.json(await repository.listAudit(limit, action));
+});
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => { console.error(err); res.status(500).json({ error: "internal error" }); });
 export default app;
