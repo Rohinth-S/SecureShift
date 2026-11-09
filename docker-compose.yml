@@ -1,0 +1,10 @@
+services:
+  api:
+    image: node:22-alpine
+    working_dir: /app
+    volumes: [.:/app]
+    command: sh -c "npm ci && npm run dev"
+    ports: ["4010:4010"]
+    environment:
+      JWT_SECRET: local-development-secret
+      DB_FILE: /app/data/secureshift.db
