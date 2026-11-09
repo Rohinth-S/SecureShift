@@ -3,9 +3,11 @@ import cors from "cors";
 import crypto from "node:crypto";
 import {z} from "zod";
 import {db} from "./db.js";
-import {hashOtp,hashPassword,signToken,verifyToken,Claims,Role} from "./security.js";
+import {hashOtp,hashPassword,verifyPassword,signToken,verifyToken,Claims,Role} from "./security.js";
 
-const app=express(); app.use(cors()); app.use(express.json({limit:"1mb"}));
+const app=express();
+const corsOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map(v=>v.trim()).filter(Boolean);
+app.use(cors({ origin: (origin, callback) => { if (!origin || (process.env.NODE_ENV !== "production" && corsOrigins.length === 0) || corsOrigins.includes(origin)) callback(null, true); else callback(new Error("origin not allowed")); } })); app.use(express.json({limit:"1mb"}));
 type Authed=Request & {user?:Claims};
 function auth(req:Authed,res:Response,next:NextFunction){const h=req.header("authorization"); if(!h?.startsWith("Bearer ")) return res.status(401).json({error:"missing bearer token"}); try{req.user=verifyToken(h.slice(7)); next();}catch{return res.status(401).json({error:"invalid or expired token"});}}
 function allow(...roles:Role[]){return (req:Authed,res:Response,next:NextFunction)=>{if(!req.user || !roles.includes(req.user.role)) return res.status(403).json({error:"insufficient role"}); next();};}
@@ -13,7 +15,7 @@ function audit(actor:string,action:string,type:string,id:string,meta:unknown={})
 const register=z.object({email:z.string().email(),password:z.string().min(12),role:z.enum(["admin","manager","worker"]).default("worker"),phone:z.string().optional()});
 app.get("/health",(_,res)=>res.json({service:"secureshift",status:"ok",time:new Date().toISOString()}));
 app.post("/auth/register",(req,res)=>{const p=register.safeParse(req.body); if(!p.success)return res.status(400).json({error:p.error.flatten()}); const id=crypto.randomUUID(); try{db.prepare("INSERT INTO users VALUES (?,?,?,?,?,?)").run(id,p.data.email.toLowerCase(),hashPassword(p.data.password),p.data.role,p.data.phone??null,new Date().toISOString()); return res.status(201).json({id,email:p.data.email,role:p.data.role});}catch{return res.status(409).json({error:"email already registered"});}});
-app.post("/auth/login",(req,res)=>{const p=z.object({email:z.string().email(),password:z.string()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:"invalid credentials"});const u=db.prepare("SELECT * FROM users WHERE email=?").get(p.data.email.toLowerCase()) as any;if(!u||u.password_hash!==hashPassword(p.data.password))return res.status(401).json({error:"invalid credentials"});return res.json({token:signToken({sub:u.id,email:u.email,role:u.role}),user:{id:u.id,email:u.email,role:u.role}});});
+app.post("/auth/login",(req,res)=>{const p=z.object({email:z.string().email(),password:z.string()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:"invalid credentials"});const u=db.prepare("SELECT * FROM users WHERE email=?").get(p.data.email.toLowerCase()) as any;if(!u||!verifyPassword(p.data.password,u.password_hash))return res.status(401).json({error:"invalid credentials"});return res.json({token:signToken({sub:u.id,email:u.email,role:u.role}),user:{id:u.id,email:u.email,role:u.role}});});
 app.post("/auth/request-otp",auth,(req:Authed,res)=>{const id=crypto.randomUUID(); const code=String(Math.floor(100000+Math.random()*900000)); const expires=new Date(Date.now()+5*60_000).toISOString(); db.prepare("INSERT INTO otp_challenges VALUES (?,?,?,?,NULL)").run(id,req.user!.sub,hashOtp(code),expires); audit(req.user!.sub,"otp.requested","otp",id); res.status(202).json({challengeId:id,expiresAt:expires,devCode:process.env.NODE_ENV==="production"?undefined:code});});
 app.post("/auth/verify-otp",auth,(req:Authed,res)=>{const p=z.object({challengeId:z.string(),code:z.string().length(6)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:"invalid payload"});const c=db.prepare("SELECT * FROM otp_challenges WHERE id=? AND user_id=? AND consumed_at IS NULL").get(p.data.challengeId,req.user!.sub) as any;if(!c||new Date(c.expires_at)<new Date()||c.code_hash!==hashOtp(p.data.code))return res.status(400).json({error:"invalid or expired code"});db.prepare("UPDATE otp_challenges SET consumed_at=? WHERE id=?").run(new Date().toISOString(),c.id);audit(req.user!.sub,"otp.verified","otp",c.id);res.json({verified:true});});
 const shift=z.object({title:z.string().min(2).max(120),startsAt:z.string().datetime(),endsAt:z.string().datetime(),location:z.string().min(2).max(160)});
